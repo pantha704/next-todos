@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Trash2, Plus, Edit2 } from "lucide-react";
 
 interface Todo {
@@ -14,7 +14,9 @@ const TodoApp = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [tempTitle, setTempTitle] = useState<string>("");
+  const [editValue, setEditValue] = useState<string>("");
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch("/api/todos")
@@ -73,46 +75,33 @@ const TodoApp = () => {
     }
   };
 
-  const debounce = (func: Function, wait: number) => {
-    let timeout: NodeJS.Timeout;
-    return (...args: any[]) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-  };
-
-  const updateTodo = debounce(async (id: number, newTitle: string) => {
+  const updateTodo = async (id: number, title: string) => {
     try {
       const res = await fetch(`/api/todos/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle }),
+        body: JSON.stringify({ title }),
       });
       if (res.ok) {
         setTodos(
-          todos.map((todo) =>
-            todo.id === id ? { ...todo, title: newTitle } : todo
-          )
+          todos.map((todo) => (todo.id === id ? { ...todo, title } : todo))
         );
         setEditingId(null);
+        setEditValue("");
       }
     } catch (error) {
       console.error("Error updating todo:", error);
     }
-  }, 500);
-
-  const handleTitleChange = (newTitle: string) => {
-    setTempTitle(newTitle);
   };
 
-  const startEditing = (id: number, currentTitle: string) => {
+  const handleFocus = (id: number, title: string) => {
     setEditingId(id);
-    setTempTitle(currentTitle);
+    setEditValue(title);
   };
 
-  const saveEdit = () => {
+  const handleBlur = () => {
     if (editingId !== null) {
-      updateTodo(editingId, tempTitle);
+      updateTodo(editingId, editValue);
     }
   };
 
@@ -147,10 +136,10 @@ const TodoApp = () => {
               key={todo.id}
               className="bg-white overflow-hidden shadow-lg rounded-lg hover:shadow-xl transition-shadow duration-300 ease-in-out"
             >
-              <div className="p-4 flex flex-col sm:flex-row items-start space-y-2 sm:space-y-0 sm:space-x-4">
+              <div className="p-4 flex items-start space-x-4">
                 <button
                   onClick={() => toggleTodo(todo.id, todo.completed)}
-                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 ${
+                  className={`flex-shrink-0 w-6 h-6 mt-1 rounded-full border-2 ${
                     todo.completed
                       ? "bg-green-500 border-green-500"
                       : "border-gray-300"
@@ -173,10 +162,11 @@ const TodoApp = () => {
                 <div className="flex-grow">
                   {editingId === todo.id ? (
                     <input
+                      ref={inputRef}
                       type="text"
-                      value={tempTitle}
-                      onChange={(e) => handleTitleChange(e.target.value)}
-                      onBlur={saveEdit}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={handleBlur}
                       className="w-full px-2 py-1 text-gray-700 border-b border-gray-300 focus:outline-none focus:border-indigo-500"
                       autoFocus
                     />
@@ -185,7 +175,7 @@ const TodoApp = () => {
                       className={`text-gray-800 break-words ${
                         todo.completed ? "line-through text-gray-500" : ""
                       }`}
-                      onDoubleClick={() => startEditing(todo.id, todo.title)}
+                      onClick={() => handleFocus(todo.id, todo.title)}
                     >
                       {todo.title}
                     </p>
@@ -193,7 +183,7 @@ const TodoApp = () => {
                 </div>
                 <div className="flex-shrink-0 flex space-x-2">
                   <button
-                    onClick={() => startEditing(todo.id, todo.title)}
+                    onClick={() => handleFocus(todo.id, todo.title)}
                     className="text-indigo-600 hover:text-indigo-800 focus:outline-none"
                   >
                     <Edit2 size={18} />
